@@ -39,6 +39,28 @@ console.log(
 app.use("/api/v0/multi-city-urbanism", multiCityUrbanismRouter);
 console.log("Multi-city urbanism routes registered");
 
+// Direct routes for Vercel compatibility
+import { MultiCityUrbanismController } from "./controllers/multiCityUrbanism.controller";
+const multiCityController = new MultiCityUrbanismController();
+
+// Direct routes (bypass router middleware for Vercel)
+app.get(
+  "/api/v0/multi-city-urbanism/counties",
+  multiCityController.getCounties,
+);
+app.get(
+  "/api/v0/multi-city-urbanism/counties/:county/cities",
+  multiCityController.getCitiesByCounty,
+);
+app.get(
+  "/api/v0/multi-city-urbanism/cities/:cityId",
+  multiCityController.getCityInfo,
+);
+app.post("/api/v0/multi-city-urbanism/lookup", (req, res) => {
+  console.log("Direct lookup route called");
+  multiCityController.lookupAddress(req, res);
+});
+
 // Debug: Print all registered routes
 console.log("=== REGISTERED ROUTES ===");
 app._router.stack.forEach((middleware: any) => {
