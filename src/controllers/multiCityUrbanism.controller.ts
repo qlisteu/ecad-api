@@ -29,8 +29,6 @@ export class MultiCityUrbanismController {
         `Looking up address: "${address}" in city: "${cityId}" with analysis: ${includeAnalysis}`,
       );
 
-      // For now, we'll use the basic lookup without analysis
-      // Analysis can be added later when we have PDF processing for other cities
       const result = await multiCityUrbanismService.lookupAddress(
         cityId,
         address.trim(),

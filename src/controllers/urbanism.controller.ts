@@ -25,9 +25,9 @@ export class UrbanismController {
         `Looking up address: "${address}" with analysis: ${includeAnalysis}`,
       );
 
-      const result = includeAnalysis
-        ? await this.urbanismService.lookupAddressWithAnalysis(address.trim())
-        : await this.urbanismService.lookupAddress(address.trim());
+      const result = await this.urbanismService.lookupAddressWithAnalysis(
+        address.trim(),
+      );
 
       console.log("Lookup successful, returning result");
       res.status(200).json(result);
