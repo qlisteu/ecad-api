@@ -459,12 +459,53 @@ export class UrbanismService {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
             },
+          },
+        );
+
+        console.log(`Raw OpenAI response: "${response.data}"`);
+        return response.data.choices[0].message.content;
+      } catch (error: any) {
+        console.error(
+          `OpenAI attempt ${attempt} failed:`,
+          error.response?.status,
+          error.response?.data?.error?.message || error.message,
+        );
+
+        if (error.response?.status === 429 && attempt < maxRetries) {
+          // Extract the exact wait time from OpenAI error message
+          const errorMessage = error.response?.data?.error?.message || "";
+          const waitTimeMatch = errorMessage.match(/try again in (\d+)ms/);
+
+          if (waitTimeMatch) {
+            const exactWaitTime = parseInt(waitTimeMatch[1]) + 100; // Add 100ms buffer
+            console.log(
+              `Rate limited. Waiting ${exactWaitTime}ms before retry (as requested by OpenAI)...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, exactWaitTime));
+          } else {
+            // Fallback to exponential backoff if we can't extract the time
+            const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+            console.log(
+              `Rate limited. Could not extract wait time. Using exponential backoff: ${waitTime / 1000}s...`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+          }
+          continue;
+        }
+
+        if (attempt === maxRetries) {
+          throw error;
+        }
+
+        // For other errors, wait a bit and retry
+        if (attempt < maxRetries) {
+          console.log(`Waiting 1s before retry...`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
-      continue;
     }
 
-    if (attempt === maxRetries) {
-      throw error;
+    throw new Error("Max retries exceeded");
   }
 
   async extractBuildingTypes(
@@ -484,7 +525,7 @@ export class UrbanismService {
     try {
       console.log(`Extracting building types for zone: ${codZona}`);
 
-      const truncatedText = pdfText.substring(0, 165000);
+      const truncatedText = pdfText.substring(0, 80000);
 
       const prompt = `Analizează următorul regulament de urbanism pentru zona "${codZona}" și extrage TOATE tipurile de construcții permise.
 
@@ -557,7 +598,7 @@ Important:
       );
       console.log(`PDF text length: ${pdfText.length} characters`);
 
-      const truncatedText = pdfText.substring(0, 68000);
+      const truncatedText = pdfText.substring(0, 40000);
       console.log(
         `Using truncated text length: ${truncatedText.length} characters`,
       );
