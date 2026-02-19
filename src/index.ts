@@ -48,6 +48,34 @@ app.get("/api/v0/health", (_, res) => {
   });
 });
 
+// Debug route to see all requests
+app.get("/debug", (req, res) => {
+  res.status(200).json({
+    message: "Debug route works",
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+  });
+});
+
+// Catch-all for debugging
+app.use("*", (req, res) => {
+  console.log(`Catch-all route: ${req.method} ${req.url}`);
+  res.status(404).json({
+    error: "Route not found",
+    method: req.method,
+    url: req.url,
+    availableRoutes: [
+      "/api/v0/health",
+      "/api/v0/urbanism/lookup",
+      "/api/v0/multi-city-urbanism/counties",
+      "/api/v0/multi-city-urbanism/counties/:county/cities",
+      "/api/v0/multi-city-urbanism/cities/:cityId",
+      "/api/v0/multi-city-urbanism/lookup",
+    ],
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`ECAD API server is running on port ${PORT}`);
 });
