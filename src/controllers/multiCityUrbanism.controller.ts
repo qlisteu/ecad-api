@@ -46,12 +46,22 @@ export class MultiCityUrbanismController {
 
   public getCounties = async (req: Request, res: Response): Promise<void> => {
     try {
+      console.log("getCounties called");
       const counties = citiesService.getCounties();
+      console.log("Counties retrieved:", counties?.length || 0);
+
+      if (!counties) {
+        console.log("Counties is null/undefined");
+        res.status(500).json({ error: "Failed to load counties data" });
+        return;
+      }
 
       res.status(200).json(counties);
     } catch (error: any) {
       console.error("Error getting counties:", error);
-      res.status(500).json({ error: "Failed to get counties" });
+      res
+        .status(500)
+        .json({ error: "Failed to get counties", details: error.message });
     }
   };
 

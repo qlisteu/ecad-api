@@ -6,10 +6,18 @@
       "use": "@vercel/node"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "src/index.ts"
+      "src": "/api/v0/multi-city-urbanism/(.*)",
+      "dest": "src/index.ts"
+    },
+    {
+      "src": "/api/v0/health",
+      "dest": "src/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "src/index.ts"
     }
   ]
 }

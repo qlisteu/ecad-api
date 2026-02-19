@@ -39,6 +39,26 @@ console.log(
 app.use("/api/v0/multi-city-urbanism", multiCityUrbanismRouter);
 console.log("Multi-city urbanism routes registered");
 
+// Debug: Print all registered routes
+console.log("=== REGISTERED ROUTES ===");
+app._router.stack.forEach((middleware: any) => {
+  if (middleware.route) {
+    console.log(
+      `Route: ${middleware.route.path} [${Object.keys(middleware.route.methods).join(", ")}]`,
+    );
+  } else if (middleware.name === "router") {
+    console.log(`Router: ${middleware.regexp}`);
+    middleware.handle.stack.forEach((handler: any) => {
+      if (handler.route) {
+        console.log(
+          `  - ${handler.route.path} [${Object.keys(handler.route.methods).join(", ")}]`,
+        );
+      }
+    });
+  }
+});
+console.log("=== END ROUTES ===");
+
 // Health check
 app.get("/api/v0/health", (_, res) => {
   res.status(200).json({
