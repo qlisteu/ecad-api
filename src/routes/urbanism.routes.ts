@@ -12,6 +12,12 @@ function createUrbanismRouter(): Router {
     urbanismController.lookupAddress(req, res);
   });
 
+  router.post("/analyze-building-details", (req, res, _next) => {
+    console.log("Route handler called for /analyze-building-details");
+    console.log("Request body in route:", req.body);
+    urbanismController.analyzeBuildingDetails(req, res);
+  });
+
   return router;
 }
 

@@ -5,6 +5,9 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
+    "dev:clean": "npm run kill-port-ps && npm run dev",
+    "kill-port": "for /f \"tokens=5\" %%a in ('netstat -ano ^| findstr :4000 ^| findstr LISTENING') do taskkill /f /pid %%a 2>nul",
+    "kill-port-ps": "powershell -ExecutionPolicy Bypass -File kill-port.ps1",
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",

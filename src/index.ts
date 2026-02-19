@@ -96,8 +96,20 @@ app.use("*", (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`ECAD API server is running on port ${PORT}`);
-});
+app
+  .listen(PORT, () => {
+    console.log(`ECAD API server is running on port ${PORT}`);
+  })
+  .on("error", (err: any) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(
+        `Port ${PORT} is already in use. Please kill the process using this port or change the port.`,
+      );
+      process.exit(1);
+    } else {
+      console.error("Server error:", err);
+      process.exit(1);
+    }
+  });
 
 export default app;

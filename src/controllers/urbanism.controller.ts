@@ -36,4 +36,55 @@ export class UrbanismController {
       res.status(500).json({ error: "Failed to lookup address" });
     }
   };
+
+  public analyzeBuildingDetails = async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { zoneCode, buildingType } = req.body;
+
+      if (!zoneCode || !buildingType) {
+        res
+          .status(400)
+          .json({ error: "Zone code and building type are required" });
+        return;
+      }
+
+      console.log(
+        `Analyzing building details for zone: ${zoneCode}, type: ${buildingType}`,
+      );
+
+      // First, we need to get the zone info to find the regulament URL
+      const address = req.body.address || "dummy address"; // We'll need this for lookup
+      const lookupResult = await this.urbanismService.lookupAddress(address);
+
+      const zone = lookupResult.zones.find((z) => z.cod_zona === zoneCode);
+      if (!zone || !zone.regulament) {
+        res.status(404).json({ error: "Zone or regulament not found" });
+        return;
+      }
+
+      // Download and analyze PDF
+      const pdfText = await this.urbanismService.downloadAndExtractPdfText(
+        zone.regulament,
+      );
+      if (!pdfText) {
+        res.status(400).json({ error: "Failed to download or parse PDF" });
+        return;
+      }
+
+      const details = await this.urbanismService.analyzeBuildingDetails(
+        pdfText,
+        zoneCode,
+        buildingType,
+      );
+
+      console.log(`Building details analysis completed for ${zoneCode}`);
+      res.status(200).json(details);
+    } catch (error: any) {
+      console.error("Error analyzing building details:", error);
+      res.status(500).json({ error: "Failed to analyze building details" });
+    }
+  };
 }
