@@ -44,7 +44,7 @@ export class MultiCityUrbanismController {
     }
   };
 
-  public getCounties = async (req: Request, res: Response): Promise<void> => {
+  public getCounties = async (_req: Request, res: Response): Promise<void> => {
     try {
       console.log("getCounties called");
       const counties = citiesService.getCounties();

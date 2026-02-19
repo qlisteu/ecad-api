@@ -5,7 +5,7 @@ function createMultiCityUrbanismRouter(): Router {
   const router = Router();
   const controller = new MultiCityUrbanismController();
 
-  router.post("/lookup", (req, res, next) => {
+  router.post("/lookup", (req, res, _next) => {
     console.log("Multi-city route handler called for /lookup");
     console.log("Request body in multi-city route:", req.body);
     controller.lookupAddress(req, res);

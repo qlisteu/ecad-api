@@ -6,7 +6,7 @@ function createUrbanismRouter(): Router {
   const router = Router();
   const urbanismController = new UrbanismController(urbanismService);
 
-  router.post("/lookup", (req, res, next) => {
+  router.post("/lookup", (req, res, _next) => {
     console.log("Route handler called for /lookup");
     console.log("Request body in route:", req.body);
     urbanismController.lookupAddress(req, res);
