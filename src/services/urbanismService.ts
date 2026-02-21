@@ -4,6 +4,7 @@ import { ChunkingService } from "./chunkingService";
 import { OpenAIEmbeddingService } from "./embeddingService";
 import { SupabaseEmbeddingsRepository } from "../repositories/embeddingsRepository";
 import { RagService } from "./ragService";
+import { RetrievedChunk } from "../models/embedding";
 
 export interface AddressSearchResult {
   IdMapSearch: string;
@@ -684,7 +685,7 @@ Important:
         try {
           const retrieved = await this.ragService.retrieveContext({
             zoneCode: codZona,
-            query: `zona ${codZona}; tip constructie: ${buildingType}; sinonime: locuinte individuale, locuințe individuale, locuinte unifamiliale, locuinte insiruite, locuinte izolata, locuinta; caut POT, P.O.T, procent ocupare teren, CUT, C.U.T, coeficient utilizare teren, suprafata minima parcela, suprafata minima lot, distanta la limite, retrageri, alinieri, deschidere la strada, front stradal`,
+            query: `zona ${codZona}; tip constructie: ${buildingType}; sinonime: locuinte individuale, locuințe individuale, locuinte unifamiliale, locuinte insiruite, locuinte izolata, locuinta; caut POT, P.O.T, procent ocupare teren, CUT, C.U.T, coeficient utilizare teren, suprafata minima parcela, suprafata minima lot, distanta la limite, retrageri, alinieri, deschidere la strada, front stradal; evita subzone care nu includ ${codZona}`,
             limit: 30,
           });
           console.log(`RAG retrieved ${retrieved.length} chunks`);
@@ -693,9 +694,21 @@ Important:
           const fieldKeywords: Record<string, string[]> = {
             pot: ["pot", "procent", "ocupare"],
             cut: ["cut", "coeficient", "utilizare"],
-            suprafataMinima: ["supraf", "parcela", "lot"],
-            distantaLimite: ["dist", "retrag", "aliniere"],
-            deschidereStrada: ["deschidere", "front", "stradal"],
+            suprafataMinima: [
+              "supraf",
+              "parcela",
+              "lot",
+              "suprafata",
+              "suprafața",
+            ],
+            distantaLimite: [
+              "dist",
+              "retrag",
+              "aliniere",
+              "distanta",
+              "distanța",
+            ],
+            deschidereStrada: ["deschidere", "front", "stradal", "strada"],
           };
 
           const hasNumberUnit = (text: string) => {
@@ -826,7 +839,9 @@ Extrage următoarele informații SPECIFICE pentru "${buildingType}" în zona ${c
 
 Important:
 - Returnează DOAR obiectul JSON valid, cu aceste 5 câmpuri exact
-- Caută valori numerice și unități (%, mp, ml, m). Dacă sunt mai multe variante, alege valoarea maximă dacă e un plafon sau cea explicită pentru categoria respectivă.
+- Pentru fiecare câmp, dacă există mai multe valori/variante (ex: POT diferit pe regim, CUT P și P+1, suprafețe minime diferite pe tip de amplasare), enumeră-le pe toate în același șir, separate prin "; " și etichetate clar (ex: "POT: 45%; 50% pe colț"). Nu comprima la o singură valoare.
+- Folosește DOAR informațiile care menționează zona ${codZona} sau includ explicit ${codZona} într-o listă de subzone; dacă un tabel/fragment nu menționează ${codZona}, nu aplica acele valori.
+- Caută valori numerice și unități (%, mp, ml, m).
 - Dacă o informație nu există clar în regulament, folosește "??"
 - Nu inventa valori; extrage doar ce este menționat în context
 
