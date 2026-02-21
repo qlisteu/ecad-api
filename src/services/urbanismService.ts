@@ -43,6 +43,48 @@ export class UrbanismService {
   private sessionInitialized = false;
 
   private ragService?: RagService;
+  private async parsePdfWithLayout(buffer: Buffer): Promise<string> {
+    try {
+      const PdfParser = (await import("pdf2json")).default as any;
+      const pdfParser = new PdfParser();
+      return await new Promise((resolve, reject) => {
+        pdfParser.on("pdfParser_dataError", (err: any) =>
+          reject(err?.parserError || err),
+        );
+        pdfParser.on("pdfParser_dataReady", (pdfData: any) => {
+          const pages = pdfData?.formImage?.Pages || [];
+          const rows: string[] = [];
+          pages.forEach((page: any) => {
+            const lines: Record<number, { x: number; text: string }[]> = {};
+            (page.Texts || []).forEach((t: any) => {
+              const y = Math.round((t.y || 0) * 10);
+              const x = Math.round((t.x || 0) * 10);
+              const txt = (t.R || [])
+                .map((r: any) => decodeURIComponent(r.T || ""))
+                .join("")
+                .trim();
+              if (!txt) return;
+              if (!lines[y]) lines[y] = [];
+              lines[y].push({ x, text: txt });
+            });
+
+            Object.keys(lines)
+              .map((k) => parseInt(k, 10))
+              .sort((a, b) => a - b)
+              .forEach((key) => {
+                const line = lines[key].sort((a, b) => a.x - b.x);
+                rows.push(line.map((seg) => seg.text).join(" "));
+              });
+          });
+          resolve(rows.join("\n"));
+        });
+        pdfParser.parseBuffer(buffer);
+      });
+    } catch (err) {
+      console.warn("pdf2json parse failed:", err);
+      return "";
+    }
+  }
 
   constructor() {
     try {
@@ -467,10 +509,33 @@ export class UrbanismService {
       });
 
       const pdfParse = (await import("pdf-parse")).default;
-      const pdfData = await pdfParse(Buffer.from(response.data));
+      const buffer = Buffer.from(response.data);
+      const pdfData = await pdfParse(buffer);
+      const flatText = pdfData.text || "";
+      let layoutText = "";
+      try {
+        layoutText = await this.parsePdfWithLayout(buffer);
+      } catch (err) {
+        console.warn("Layout extraction failed:", err);
+      }
 
-      console.log(`Extracted ${pdfData.text.length} characters from PDF`);
-      return pdfData.text;
+      const scoreText = (txt: string) => {
+        const lines = txt.split(/\r?\n/);
+        const multiSpace = lines.filter(
+          (l) => (l.match(/\s{2,}/g) || []).length > 0,
+        ).length;
+        return multiSpace + lines.length * 0.01; // prefer structured lines
+      };
+
+      const chosen =
+        layoutText && scoreText(layoutText) > scoreText(flatText)
+          ? layoutText
+          : flatText;
+
+      console.log(
+        `Extracted PDF text (chosen=${layoutText && scoreText(layoutText) > scoreText(flatText) ? "layout" : "flat"}), len=${chosen.length}`,
+      );
+      return chosen;
     } catch (error) {
       console.error(`Failed to download/parse PDF: ${error}`);
       return "";
@@ -686,7 +751,7 @@ Important:
           const retrieved = await this.ragService.retrieveContext({
             zoneCode: codZona,
             query: `zona ${codZona}; tip constructie: ${buildingType}; sinonime: locuinte individuale, locuințe individuale, locuinte unifamiliale, locuinte insiruite, locuinte izolata, locuinta; caut POT, P.O.T, procent ocupare teren, CUT, C.U.T, coeficient utilizare teren, suprafata minima parcela, suprafata minima lot, distanta la limite, retrageri, alinieri, deschidere la strada, front stradal; evita subzone care nu includ ${codZona}`,
-            limit: 30,
+            limit: 40,
           });
           console.log(`RAG retrieved ${retrieved.length} chunks`);
 
@@ -744,7 +809,7 @@ Important:
             return true;
           });
 
-          const topFocus = dedup.slice(0, 40);
+          const topFocus = dedup.slice(0, 60);
           contextText = topFocus.map((c) => c.chunk).join("\n---\n");
           console.log(
             `RAG focus chunks: ${topFocus.length} (from ${retrieved.length}), focus hits: ${focusChunks.length}, numeric hits: ${numericChunks.length}`,
@@ -842,8 +907,14 @@ Important:
 - Pentru fiecare câmp, dacă există mai multe valori/variante (ex: POT diferit pe regim, CUT P și P+1, suprafețe minime diferite pe tip de amplasare), enumeră-le pe toate în același șir, separate prin "; " și etichetate clar (ex: "POT: 45%; 50% pe colț"). Nu comprima la o singură valoare.
 - Folosește DOAR informațiile care menționează zona ${codZona} sau includ explicit ${codZona} într-o listă de subzone; dacă un tabel/fragment nu menționează ${codZona}, nu aplica acele valori.
 - Caută valori numerice și unități (%, mp, ml, m).
+- Pentru "distantaLimite" extrage doar distanțele față de limitele parcelei (laterale, posterioare, fațade). Nu include distanțe între clădiri pe aceeași parcelă (articole separate despre distanța între clădiri se ignoră aici).
 - Dacă o informație nu există clar în regulament, folosește "??"
 - Nu inventa valori; extrage doar ce este menționat în context
+
+Notează explicit pentru "distantaLimite":
+- menționează separat retragerile laterale (stânga/dreapta) și condiția minim jumătate din înălțimea la cornișă, dar nu mai puțin de 3,0 m, dacă apare în context;
+- menționează retragerile posterioare (ex. jumătate din înălțimea la cornișă, min 5,0 m) și orice condiție pentru interspatiu/alipire;
+- dacă textul distinge între înșiruit / semi-cuplat / izolat, listează-le separat în același câmp, etichetate și separate prin "; ".
 
 Răspunde DOAR cu un obiect JSON valid:
 {
