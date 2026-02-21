@@ -23,7 +23,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "openai": "^4.0.0",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

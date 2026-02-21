@@ -1,10 +1,10 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import urbanismRoutes from "./routes/urbanism.routes";
 import multiCityUrbanismRoutes from "./routes/multiCityUrbanism.routes";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;

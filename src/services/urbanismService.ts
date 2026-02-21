@@ -1,4 +1,9 @@
 import axios from "axios";
+import { createSupabaseClient } from "../config/supabaseClient";
+import { ChunkingService } from "./chunkingService";
+import { OpenAIEmbeddingService } from "./embeddingService";
+import { SupabaseEmbeddingsRepository } from "../repositories/embeddingsRepository";
+import { RagService } from "./ragService";
 
 export interface AddressSearchResult {
   IdMapSearch: string;
@@ -35,6 +40,52 @@ export class UrbanismService {
   private readonly baseUrl = "https://urbanism.pmb.ro/xportalurb";
   private cookieJar: string[] = [];
   private sessionInitialized = false;
+
+  private ragService?: RagService;
+
+  constructor() {
+    try {
+      const supabaseClient = createSupabaseClient();
+      const chunkingService = new ChunkingService();
+      const embeddingService = new OpenAIEmbeddingService();
+      const repo = new SupabaseEmbeddingsRepository(supabaseClient);
+      this.ragService = new RagService(chunkingService, embeddingService, repo);
+      console.log("RAG initialized with Supabase client");
+    } catch (error) {
+      console.warn(
+        "RAG setup skipped (missing SUPABASE_URL/SUPABASE_SERVICE_KEY or OPENAI_API_KEY):",
+        error,
+      );
+      this.ragService = undefined;
+    }
+  }
+
+  private extractKeywordSnippets(
+    text: string,
+    keywords: string[],
+    windowSize: number,
+    maxSnippets: number,
+  ): string[] {
+    const lower = text.toLowerCase();
+    const snippets: string[] = [];
+    const seen = new Set<number>();
+    for (const kw of keywords) {
+      let idx = lower.indexOf(kw);
+      let safety = 0;
+      while (idx !== -1 && safety < 20 && snippets.length < maxSnippets) {
+        if (![...seen].some((i) => Math.abs(i - idx) < windowSize / 2)) {
+          seen.add(idx);
+          const start = Math.max(0, idx - windowSize);
+          const end = Math.min(text.length, idx + windowSize);
+          snippets.push(text.slice(start, end));
+        }
+        idx = lower.indexOf(kw, idx + kw.length);
+        safety++;
+      }
+      if (snippets.length >= maxSnippets) break;
+    }
+    return snippets;
+  }
 
   private updateCookies(response: Response): void {
     const cookies = response.headers.get("set-cookie");
@@ -442,7 +493,7 @@ export class UrbanismService {
         const response = await axios.post(
           "https://api.openai.com/v1/chat/completions",
           {
-            model: "gpt-4o",
+            model: "gpt-4.1",
             messages: [
               {
                 role: "system",
@@ -543,14 +594,26 @@ Important:
 - Dacă nu găsești informații, returnează array gol: []`;
 
       const analysis = await this.callOpenAIWithRetry(prompt, 800);
+      const analysisText =
+        typeof analysis === "string" ? analysis : JSON.stringify(analysis);
+      console.log(`Raw OpenAI response (building types): "${analysisText}"`);
       console.log(`Successfully extracted building types for ${codZona}`);
+
+      // Clean the response - remove markdown formatting if present
+      let cleaned = analysisText.trim();
+      if (cleaned.startsWith("```json")) {
+        cleaned = cleaned.replace(/```json\s*/, "").replace(/```\s*$/, "");
+      } else if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/```\s*/, "").replace(/```\s*$/, "");
+      }
 
       // Parse JSON array
       try {
-        const buildingTypes = JSON.parse(analysis);
+        const buildingTypes = JSON.parse(cleaned);
         return Array.isArray(buildingTypes) ? buildingTypes : [];
       } catch (parseError) {
         console.error("Failed to parse building types JSON:", parseError);
+        console.error("Cleaned building types content:", cleaned);
         return [];
       }
     } catch (error) {
@@ -563,6 +626,7 @@ Important:
     pdfText: string,
     codZona: string,
     buildingType: string,
+    sourceUrl?: string,
   ): Promise<{
     pot: string;
     cut: string;
@@ -598,31 +662,173 @@ Important:
       );
       console.log(`PDF text length: ${pdfText.length} characters`);
 
-      const truncatedText = pdfText.substring(0, 40000);
-      console.log(
-        `Using truncated text length: ${truncatedText.length} characters`,
-      );
+      // RAG: index document (idempotent via deterministic IDs) if available
+      if (this.ragService && sourceUrl) {
+        try {
+          await this.ragService.indexDocument({
+            zoneCode: codZona,
+            sourceUrl,
+            fullText: pdfText,
+          });
+        } catch (e) {
+          console.warn("RAG index failed, falling back to raw text:", e);
+        }
+      } else {
+        console.log(
+          "RAG disabled or missing sourceUrl; using fallback context",
+        );
+      }
 
-      const prompt = `Analizează următorul regulament de urbanism pentru zona "${codZona}" și extrage informațiile specifice pentru construcțiile de tip "${buildingType}".
+      let contextText = "";
+      if (this.ragService) {
+        try {
+          const retrieved = await this.ragService.retrieveContext({
+            zoneCode: codZona,
+            query: `zona ${codZona}; tip constructie: ${buildingType}; sinonime: locuinte individuale, locuințe individuale, locuinte unifamiliale, locuinte insiruite, locuinte izolata, locuinta; caut POT, P.O.T, procent ocupare teren, CUT, C.U.T, coeficient utilizare teren, suprafata minima parcela, suprafata minima lot, distanta la limite, retrageri, alinieri, deschidere la strada, front stradal`,
+            limit: 30,
+          });
+          console.log(`RAG retrieved ${retrieved.length} chunks`);
 
-Regulament:
-${truncatedText}
+          // Focus on chunks that mention the target fields
+          const fieldKeywords: Record<string, string[]> = {
+            pot: ["pot", "procent", "ocupare"],
+            cut: ["cut", "coeficient", "utilizare"],
+            suprafataMinima: ["supraf", "parcela", "lot"],
+            distantaLimite: ["dist", "retrag", "aliniere"],
+            deschidereStrada: ["deschidere", "front", "stradal"],
+          };
+
+          const hasNumberUnit = (text: string) => {
+            const t = text.toLowerCase();
+            return /\d/.test(t) && /(\%|mp\b|ml\b|m\b)/.test(t);
+          };
+
+          const focusChunks = retrieved.filter((c) => {
+            const t = (c.chunk || "").toLowerCase();
+            return (
+              fieldKeywords.pot.some((k) => t.includes(k)) ||
+              fieldKeywords.cut.some((k) => t.includes(k)) ||
+              fieldKeywords.suprafataMinima.some((k) => t.includes(k)) ||
+              fieldKeywords.distantaLimite.some((k) => t.includes(k)) ||
+              fieldKeywords.deschidereStrada.some((k) => t.includes(k))
+            );
+          });
+
+          const numericChunks = retrieved.filter((c) =>
+            hasNumberUnit(c.chunk || ""),
+          );
+
+          const combined = [
+            ...focusChunks,
+            ...numericChunks.filter((c) => !focusChunks.includes(c)),
+            ...retrieved,
+          ];
+          const seenRefs = new Set<string>();
+          const dedup = combined.filter((c) => {
+            const ref = `${c.start}:${c.end}`;
+            if (seenRefs.has(ref)) return false;
+            seenRefs.add(ref);
+            return true;
+          });
+
+          const topFocus = dedup.slice(0, 40);
+          contextText = topFocus.map((c) => c.chunk).join("\n---\n");
+          console.log(
+            `RAG focus chunks: ${topFocus.length} (from ${retrieved.length}), focus hits: ${focusChunks.length}, numeric hits: ${numericChunks.length}`,
+          );
+          topFocus.slice(0, 5).forEach((c, idx) => {
+            const txt = (c.chunk || "").slice(0, 160).replace(/\s+/g, " ");
+            console.log(
+              ` [RAG][focus ${idx}] start=${c.start} end=${c.end} text=${txt}`,
+            );
+          });
+        } catch (e) {
+          console.warn(
+            "RAG retrieval failed, falling back to truncated text:",
+            e,
+          );
+        }
+      }
+
+      // Fallback to truncated PDF if no context from RAG
+      if (!contextText) {
+        const truncatedText = pdfText.substring(0, 20000);
+        console.log(
+          `Using fallback truncated text length: ${truncatedText.length} characters`,
+        );
+        contextText = truncatedText;
+      }
+
+      // Add a local keyword window around the first occurrence of zone code to boost relevance
+      const zoneIndex = pdfText.toLowerCase().indexOf(codZona.toLowerCase());
+      if (zoneIndex >= 0) {
+        const window = 2000;
+        const start = Math.max(0, zoneIndex - window);
+        const end = Math.min(pdfText.length, zoneIndex + window);
+        const snippet = pdfText.slice(start, end);
+        contextText += `\n---\n[snippet-${codZona}]:\n${snippet}`;
+        console.log(
+          `Appended zone snippet around index ${zoneIndex} (len=${snippet.length})`,
+        );
+      }
+
+      // Add keyword-based snippets for POT/CUT/retrageri/front stradal
+      const keywords = [
+        "pot",
+        "cut",
+        "procent",
+        "coeficient",
+        "retrag",
+        "distanta",
+        "distanțe",
+        "aliniere",
+        "deschidere",
+        "front",
+        "parcela",
+        "lot",
+      ];
+      const lower = pdfText.toLowerCase();
+      const snippets: string[] = [];
+      const seen = new Set<number>();
+      const windowSize = 500;
+      for (const kw of keywords) {
+        let idx = lower.indexOf(kw);
+        let safety = 0;
+        while (idx !== -1 && safety < 5) {
+          if (!Array.from(seen).some((i) => Math.abs(i - idx) < 200)) {
+            seen.add(idx);
+            const start = Math.max(0, idx - windowSize);
+            const end = Math.min(pdfText.length, idx + windowSize);
+            snippets.push(pdfText.slice(start, end));
+          }
+          idx = lower.indexOf(kw, idx + kw.length);
+          safety++;
+          if (snippets.length >= 8) break;
+        }
+        if (snippets.length >= 8) break;
+      }
+      if (snippets.length) {
+        console.log(`[RAG] Added ${snippets.length} keyword snippets`);
+        contextText += `\n---\n[keyword-snippets]:\n${snippets.join("\n---\n")}`;
+      }
+
+      const prompt = `Analizează contextul de mai jos (extras din regulamentul zonei "${codZona}") și extrage informațiile SPECIFICE pentru construcțiile de tip "${buildingType}".
+
+Context relevant:
+${contextText}
 
 Extrage următoarele informații SPECIFICE pentru "${buildingType}" în zona ${codZona}:
-1. POT (Procent de Ocupare a Terenului) 
+1. POT (Procent de Ocupare a Terenului)
 2. CUT (Coeficient de Utilizare a Terenului)
 3. Suprafața minimă de parcelă construibilă
-4. Distanța față de limitele proprietății 
-5. Deschiderea minimă la stradă 
-
-EXEMPLE CONCRETE DIN REGULAMENT:
-- L1e: POT maxim = 30%, CUT maxim pentru înălţimi P = 0,1 mp. ADC/mp. teren
-- L2a (locuințe colective mici): POT maxim = 45%, CUT maxim pentru înălţimi P+1 = 0,9 mp. ADC/mp. teren
+4. Distanța față de limitele proprietății
+5. Deschiderea minimă la stradă
 
 Important:
 - Returnează DOAR obiectul JSON valid, cu aceste 5 câmpuri exact
-- Dacă o informație nu există în regulament, folosește "??"
-- Fii precis și concis
+- Caută valori numerice și unități (%, mp, ml, m). Dacă sunt mai multe variante, alege valoarea maximă dacă e un plafon sau cea explicită pentru categoria respectivă.
+- Dacă o informație nu există clar în regulament, folosește "??"
+- Nu inventa valori; extrage doar ce este menționat în context
 
 Răspunde DOAR cu un obiect JSON valid:
 {

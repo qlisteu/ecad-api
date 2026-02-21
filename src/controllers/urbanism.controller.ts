@@ -78,6 +78,7 @@ export class UrbanismController {
         pdfText,
         zoneCode,
         buildingType,
+        zone.regulament || undefined,
       );
 
       console.log(`Building details analysis completed for ${zoneCode}`);
