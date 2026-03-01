@@ -1,11 +1,11 @@
-﻿{
+{
   "counties": [
     {
       "name": "Ilfov",
       "cities": [
         {
           "id": "bucuresti-ilfov",
-          "name": "București",
+          "name": "Bucuresti",
           "county": "Ilfov",
           "requiresAuth": true,
           "providerType": "bucuresti",
@@ -29,233 +29,6 @@
       ]
     },
     {
-      "name": "Dolj",
-      "cities": [
-        {
-          "id": "craiova",
-          "name": "Craiova",
-          "county": "Dolj",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://eportal.primariacraiova.ro",
-            "searchUrl": "/api/urbanism/search?address={address}",
-            "featuresUrl": "/api/urbanism/features?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 600
-          }
-        }
-      ]
-    },
-    {
-      "name": "Arad",
-      "cities": [
-        {
-          "id": "arad",
-          "name": "Arad",
-          "county": "Arad",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://www.cjarad.ro",
-            "searchUrl": "/api/urbanism/search?address={address}",
-            "featuresUrl": "/api/urbanism/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 500
-          }
-        }
-      ]
-    },
-    {
-      "name": "Bihor",
-      "cities": [
-        {
-          "id": "oradea",
-          "name": "Oradea",
-          "county": "Bihor",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://oradea.ro",
-            "searchUrl": "/api/gis/search?q={address}",
-            "featuresUrl": "/api/gis/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 500
-          }
-        }
-      ]
-    },
-    {
-      "name": "Bacău",
-      "cities": [
-        {
-          "id": "bacau",
-          "name": "Bacău",
-          "county": "Bacău",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://portal.municipiulbacau.ro",
-            "searchUrl": "/cmsSE/api/urbanism/search?address={address}",
-            "featuresUrl": "/cmsSE/api/urbanism/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 600
-          }
-        }
-      ]
-    },
-    {
-      "name": "Prahova",
-      "cities": [
-        {
-          "id": "ploiesti",
-          "name": "Ploiești",
-          "county": "Prahova",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://eservicii.urbanism.ploiesti.ro",
-            "searchUrl": "/api/search?address={address}",
-            "featuresUrl": "/api/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 500
-          }
-        }
-      ]
-    },
-    {
-      "name": "Galați",
-      "cities": [
-        {
-          "id": "galati",
-          "name": "Galați",
-          "county": "Galați",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://cu.primariagalati.ro",
-            "searchUrl": "/Urbanism/api/search?address={address}",
-            "featuresUrl": "/Urbanism/api/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 550
-          }
-        }
-      ]
-    },
-    {
-      "name": "Brașov",
-      "cities": [
-        {
-          "id": "brasov",
-          "name": "Brașov",
-          "county": "Brașov",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://serviciielectronice.brasovcity.ro",
-            "searchUrl": "/cmsSE/api/urbanism/search?address={address}",
-            "featuresUrl": "/cmsSE/api/urbanism/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 500
-          }
-        }
-      ]
-    },
-    {
-      "name": "Pitești",
-      "cities": [
-        {
-          "id": "pitesti",
-          "name": "Pitești",
-          "county": "Pitești",
-          "requiresAuth": false,
-          "status": "functional",
-          "urbanismService": {
-            "baseUrl": "https://www.primariapitesti.ro",
-            "searchUrl": "/api/urbanism/search?address={address}",
-            "featuresUrl": "/api/urbanism/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 500
-          }
-        }
-      ]
-    },
-    {
-      "name": "Timiș",
-      "cities": [
-        {
-          "id": "timisoara",
-          "name": "Timișoara",
-          "county": "Timiș",
-          "requiresAuth": false,
-          "providerType": "timisoara",
-          "status": "experimental",
-          "urbanismService": {
-            "baseUrl": "https://gistm.primariatm.ro",
-            "searchUrl": "/api/v1/urbanism/search?term={address}",
-            "featuresUrl": "/api/v1/urbanism/zones?bbox={bbox}",
-            "requiresAuth": false,
-            "customHeaders": {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              "Accept-Language": "ro-RO,ro;q=0.9,en-US;q=0.8,en;q=0.7"
-            }
-          },
-          "coordinates": {
-            "epsg": "EPSG:4326",
-            "defaultBuffer": 0.01
-          }
-        }
-      ]
-    },
-    {
       "name": "Cluj",
       "cities": [
         {
@@ -264,6 +37,7 @@
           "county": "Cluj",
           "requiresAuth": false,
           "providerType": "cluj",
+          "status": "functional",
           "urbanismService": {
             "baseUrl": "",
             "searchUrl": "",
@@ -274,7 +48,9 @@
           "arcgis": {
             "identifyUrl": "https://gis.primariaclujnapoca.ro/Public/proxy/proxy.jsp?https://arcgis.primariaclujnapoca.ro/arcgis/rest/services/Cluj/Urbanism/MapServer/identify",
             "layerId": 11,
-            "layerDefs": { "11": "STATUS is null" },
+            "layerDefs": {
+              "11": "STATUS is null"
+            },
             "tolerance": 1,
             "imageDisplay": "400,400,96",
             "spatialReference": 31700,
