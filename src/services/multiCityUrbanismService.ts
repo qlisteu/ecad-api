@@ -4,10 +4,47 @@ import {
   AddressSearchResult,
   ZoneInfo,
 } from "./urbanismService";
+import { BucharestUrbanismProvider } from "./providers/bucharestUrbanismProvider";
+import { ClujUrbanismProvider } from "./providers/clujUrbanismProvider";
+import { TimisoaraUrbanismProvider } from "./providers/timisoaraUrbanismProvider";
+import { UrbanismProvider } from "./providers/urbanismProvider";
+import { urbanismService } from "./urbanismService";
 
 export class MultiCityUrbanismService {
   private cookieJars: Map<string, string[]> = new Map();
   private sessionInitialized: Map<string, boolean> = new Map();
+  private readonly providersByType: Map<string, UrbanismProvider> = new Map();
+
+  constructor() {
+    this.providersByType.set("bucuresti", new BucharestUrbanismProvider());
+    this.providersByType.set("cluj", new ClujUrbanismProvider());
+    this.providersByType.set("timisoara", new TimisoaraUrbanismProvider());
+  }
+
+  private buildSearchHeaders(cityId: string, config: any): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...config.urbanismService.customHeaders,
+    };
+    const cookieHeader = this.getCookieHeader(cityId);
+    if (cookieHeader) {
+      headers["Cookie"] = cookieHeader;
+    }
+    return headers;
+  }
+
+  private buildFeaturesHeaders(cityId: string, config: any): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      ...config.urbanismService.customHeaders,
+    };
+    const cookieHeader = this.getCookieHeader(cityId);
+    if (cookieHeader) {
+      headers["Cookie"] = cookieHeader;
+    }
+    return headers;
+  }
 
   private updateCookies(cityId: string, response: Response): void {
     const cookies = response.headers.get("set-cookie");
@@ -93,17 +130,7 @@ export class MultiCityUrbanismService {
       "{address}",
       encodeURIComponent(address),
     );
-
-    const headers: Record<string, string> = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...config.urbanismService.customHeaders,
-    };
-
-    const cookieHeader = this.getCookieHeader(cityId);
-    if (cookieHeader) {
-      headers["Cookie"] = cookieHeader;
-    }
+    const headers = this.buildSearchHeaders(cityId, config);
 
     console.log(
       `Making search request to: ${config.urbanismService.baseUrl}${searchUrl}`,
@@ -171,10 +198,17 @@ export class MultiCityUrbanismService {
     if (Array.isArray(data)) {
       // If it's already an array, assume it's in the right format
       return data.map((item) => ({
-        IdMapSearch: item.IdMapSearch || item.id || item.Id,
-        Name: item.Name || item.name || item.displayName,
+        IdMapSearch:
+          item.IdMapSearch || item.id || item.Id || item.objectId || "unknown",
+        Name:
+          item.Name ||
+          item.name ||
+          item.displayName ||
+          item.address ||
+          item.label ||
+          "Unknown",
         IconClass: item.IconClass || item.icon || "default",
-        Wkt: item.Wkt || item.geometry || item.wkt,
+        Wkt: this.resolveWkt(item),
         DataSourceName: item.DataSourceName || item.source || cityId,
       }));
     }
@@ -186,11 +220,12 @@ export class MultiCityUrbanismService {
 
     if (data.features && Array.isArray(data.features)) {
       return data.features.map((feature: any) => ({
-        IdMapSearch: feature.id,
+        IdMapSearch: feature.id || feature.properties?.id || "unknown",
         Name:
           feature.properties?.name ||
           feature.properties?.Name ||
           feature.properties?.displayName ||
+          feature.properties?.address ||
           "Unknown",
         IconClass: feature.properties?.icon || "default",
         Wkt: feature.geometry ? this.geometryToWkt(feature.geometry) : "",
@@ -200,6 +235,37 @@ export class MultiCityUrbanismService {
 
     console.warn(`${cityId}: Unknown response format, returning empty array`);
     return [];
+  }
+
+  private resolveWkt(item: any): string {
+    if (item.Wkt || item.wkt) {
+      return item.Wkt || item.wkt;
+    }
+    if (typeof item.geometry === "string") {
+      return item.geometry;
+    }
+    if (item.geometry && typeof item.geometry === "object") {
+      return this.geometryToWkt(item.geometry);
+    }
+
+    const x = this.toNumber(item.x ?? item.X ?? item.lon ?? item.lng);
+    const y = this.toNumber(item.y ?? item.Y ?? item.lat);
+    if (x !== null && y !== null) {
+      return `POINT (${x} ${y})`;
+    }
+
+    return "";
+  }
+
+  private toNumber(value: any): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   private geometryToWkt(geometry: any): string {
@@ -214,14 +280,47 @@ export class MultiCityUrbanismService {
         .join(",");
       return `MULTIPOINT (${points})`;
     }
+    if (geometry.type === "Polygon") {
+      const rings = (geometry.coordinates || [])
+        .map(
+          (ring: [number, number][]) =>
+            `(${ring.map(([x, y]) => `${x} ${y}`).join(", ")})`,
+        )
+        .join(", ");
+      return `POLYGON (${rings})`;
+    }
     return "";
   }
 
   parseWktPoint(wkt: string): { x: number; y: number } | null {
+    if (!wkt || typeof wkt !== "string") {
+      return null;
+    }
+
     const match = wkt.match(/MULTIPOINT Z \(([-\d.]+)\s+([-\d.]+)\s+[\d.]+\)/);
     if (!match) {
+      const multiPointMatch = wkt.match(
+        /MULTIPOINT\s*\(\s*\(?\s*([-\d.]+)\s+([-\d.]+)/i,
+      );
+      if (multiPointMatch) {
+        return {
+          x: parseFloat(multiPointMatch[1]),
+          y: parseFloat(multiPointMatch[2]),
+        };
+      }
+
+      const pointZMatch = wkt.match(
+        /POINT\s+Z\s*\(([-\d.]+)\s+([-\d.]+)\s+[-\d.]+\)/i,
+      );
+      if (pointZMatch) {
+        return {
+          x: parseFloat(pointZMatch[1]),
+          y: parseFloat(pointZMatch[2]),
+        };
+      }
+
       // Try regular point format
-      const pointMatch = wkt.match(/POINT \(([-\d.]+)\s+([-\d.]+)\)/);
+      const pointMatch = wkt.match(/POINT\s*\(([-\d.]+)\s+([-\d.]+)\)/i);
       if (pointMatch) {
         return {
           x: parseFloat(pointMatch[1]),
@@ -252,15 +351,7 @@ export class MultiCityUrbanismService {
       bbox,
     );
 
-    const headers: Record<string, string> = {
-      Accept: "application/json",
-      ...config.urbanismService.customHeaders,
-    };
-
-    const cookieHeader = this.getCookieHeader(cityId);
-    if (cookieHeader) {
-      headers["Cookie"] = cookieHeader;
-    }
+    const headers = this.buildFeaturesHeaders(cityId, config);
 
     console.log(
       `Making features request to: ${config.urbanismService.baseUrl}${featuresUrl}`,
@@ -286,7 +377,27 @@ export class MultiCityUrbanismService {
     console.log(
       `${cityId} Successfully parsed features JSON with ${data?.features?.length || 0} features`,
     );
-    return data;
+    return this.normalizeFeatureCollection(data);
+  }
+
+  private normalizeFeatureCollection(data: any): any {
+    if (!data) {
+      return { type: "FeatureCollection", features: [] };
+    }
+
+    if (Array.isArray(data)) {
+      return { type: "FeatureCollection", features: data };
+    }
+
+    if (Array.isArray(data.features)) {
+      return data;
+    }
+
+    if (Array.isArray(data.results)) {
+      return { type: "FeatureCollection", features: data.results };
+    }
+
+    return { type: "FeatureCollection", features: [] };
   }
 
   pointInRing(
@@ -356,11 +467,22 @@ export class MultiCityUrbanismService {
 
     for (const feature of featureCollection.features || []) {
       const geom = feature.geometry;
-      if (!geom || geom.type !== "Polygon") {
+      if (!geom || (geom.type !== "Polygon" && geom.type !== "MultiPolygon")) {
         continue;
       }
 
-      if (this.pointInPolygon(point, geom.coordinates)) {
+      const polygons =
+        geom.type === "Polygon"
+          ? [geom.coordinates]
+          : Array.isArray(geom.coordinates)
+            ? geom.coordinates
+            : [];
+
+      if (
+        polygons.some((coords: number[][][]) =>
+          this.pointInPolygon(point, coords),
+        )
+      ) {
         const props = feature.properties || {};
         zones.push({
           feature_id: feature.id,
@@ -389,6 +511,12 @@ export class MultiCityUrbanismService {
     const config = citiesService.getCityById(cityId);
     if (!config) {
       throw new Error(`City configuration not found for: ${cityId}`);
+    }
+
+    const providerType = config.providerType || "portal";
+    const provider = this.providersByType.get(providerType);
+    if (provider) {
+      return provider.lookupAddress(config, address);
     }
 
     if (
@@ -459,6 +587,107 @@ export class MultiCityUrbanismService {
       point,
       zones,
     };
+  }
+
+  async lookupAddressWithAnalysis(
+    cityId: string,
+    address: string,
+  ): Promise<UrbanismLookupResult> {
+    const result = await this.lookupAddress(cityId, address);
+
+    for (const zone of result.zones) {
+      if (!zone.cod_zona) {
+        continue;
+      }
+
+      try {
+        let regulationText = zone.regulamentAnalysis || null;
+        if (
+          !regulationText &&
+          zone.regulament &&
+          /^https?:\/\//i.test(zone.regulament)
+        ) {
+          const downloaded = await urbanismService.downloadAndExtractPdfText(
+            zone.regulament,
+          );
+          if (downloaded) {
+            regulationText = downloaded;
+            zone.regulamentAnalysis = downloaded;
+          }
+        }
+
+        if (!regulationText) {
+          zone.buildingTypes = [];
+          continue;
+        }
+
+        zone.buildingTypes = await urbanismService.extractBuildingTypes(
+          regulationText,
+          zone.cod_zona,
+        );
+        console.log(
+          `[AI-RAG][${cityId}] buildingTypes extracted for zone=${zone.cod_zona}, count=${zone.buildingTypes.length}`,
+        );
+      } catch (error) {
+        console.error(
+          `[AI-RAG][${cityId}] failed to analyze zone ${zone.cod_zona}:`,
+          error,
+        );
+        zone.buildingTypes = [];
+      }
+    }
+
+    return result;
+  }
+
+  async analyzeBuildingDetails(
+    cityId: string,
+    address: string,
+    zoneCode: string,
+    buildingType: string,
+  ): Promise<{
+    pot: string;
+    cut: string;
+    suprafataMinima: string;
+    distantaLimite: string;
+    deschidereStrada: string;
+  }> {
+    const lookupResult = await this.lookupAddress(cityId, address);
+    const zone = lookupResult.zones.find((z) => z.cod_zona === zoneCode);
+    if (!zone) {
+      throw new Error(`Zone not found for code: ${zoneCode}`);
+    }
+
+    let regulationText = zone.regulamentAnalysis || null;
+    if (
+      !regulationText &&
+      zone.regulament &&
+      /^https?:\/\//i.test(zone.regulament)
+    ) {
+      const downloaded = await urbanismService.downloadAndExtractPdfText(
+        zone.regulament,
+      );
+      if (downloaded) {
+        regulationText = downloaded;
+      }
+    }
+
+    if (!regulationText) {
+      throw new Error(
+        `No regulation text available for city=${cityId}, zone=${zoneCode}`,
+      );
+    }
+
+    const details = await urbanismService.analyzeBuildingDetails(
+      regulationText,
+      zoneCode,
+      buildingType,
+      zone.regulament || undefined,
+    );
+    console.log(
+      `[AI-RAG][${cityId}] analyzed details for zone=${zoneCode}, buildingType=${buildingType}`,
+    );
+    return details;
   }
 }
 

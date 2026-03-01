@@ -8,6 +8,7 @@
           "name": "București",
           "county": "Ilfov",
           "requiresAuth": true,
+          "providerType": "bucuresti",
           "status": "functional",
           "urbanismService": {
             "baseUrl": "https://urbanism.pmb.ro/xportalurb",
@@ -223,6 +224,76 @@
           "coordinates": {
             "epsg": "EPSG:4326",
             "defaultBuffer": 500
+          }
+        }
+      ]
+    },
+    {
+      "name": "Timiș",
+      "cities": [
+        {
+          "id": "timisoara",
+          "name": "Timișoara",
+          "county": "Timiș",
+          "requiresAuth": false,
+          "providerType": "timisoara",
+          "status": "experimental",
+          "urbanismService": {
+            "baseUrl": "https://gistm.primariatm.ro",
+            "searchUrl": "/api/v1/urbanism/search?term={address}",
+            "featuresUrl": "/api/v1/urbanism/zones?bbox={bbox}",
+            "requiresAuth": false,
+            "customHeaders": {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Accept-Language": "ro-RO,ro;q=0.9,en-US;q=0.8,en;q=0.7"
+            }
+          },
+          "coordinates": {
+            "epsg": "EPSG:4326",
+            "defaultBuffer": 0.01
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cluj",
+      "cities": [
+        {
+          "id": "cluj",
+          "name": "Cluj-Napoca",
+          "county": "Cluj",
+          "requiresAuth": false,
+          "providerType": "cluj",
+          "urbanismService": {
+            "baseUrl": "",
+            "searchUrl": "",
+            "featuresUrl": "",
+            "requiresAuth": false,
+            "customHeaders": {}
+          },
+          "arcgis": {
+            "identifyUrl": "https://gis.primariaclujnapoca.ro/Public/proxy/proxy.jsp?https://arcgis.primariaclujnapoca.ro/arcgis/rest/services/Cluj/Urbanism/MapServer/identify",
+            "layerId": 11,
+            "layerDefs": { "11": "STATUS is null" },
+            "tolerance": 1,
+            "imageDisplay": "400,400,96",
+            "spatialReference": 31700,
+            "location": {
+              "x": 393070.3218711352,
+              "y": 585712.8761214111,
+              "spatialReference": 31700
+            },
+            "searchExtent": {
+              "xmin": 391766.4525967093,
+              "ymin": 584747.6741909919,
+              "xmax": 394115.95729575603,
+              "ymax": 586644.2113174297,
+              "spatialReference": 31700
+            }
+          },
+          "coordinates": {
+            "epsg": "EPSG:31700",
+            "defaultBuffer": 700
           }
         }
       ]

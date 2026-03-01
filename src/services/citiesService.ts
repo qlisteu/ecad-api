@@ -2,17 +2,36 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
+export type UrbanismProviderType = "portal" | "cluj" | string;
+
 export interface City {
   id: string;
   name: string;
   county: string;
   requiresAuth: boolean;
+  providerType?: UrbanismProviderType;
   urbanismService: {
     baseUrl: string;
     searchUrl: string;
     featuresUrl: string;
     requiresAuth: boolean;
     customHeaders?: Record<string, string>;
+  };
+  arcgis?: {
+    identifyUrl: string;
+    layerId: number;
+    layerDefs?: Record<number, string>;
+    tolerance?: number;
+    imageDisplay?: string;
+    spatialReference?: number;
+    location?: { x: number; y: number; spatialReference?: number };
+    searchExtent?: {
+      xmin: number;
+      ymin: number;
+      xmax: number;
+      ymax: number;
+      spatialReference?: number;
+    };
   };
   coordinates: {
     epsg: string;

@@ -29,16 +29,59 @@ export class MultiCityUrbanismController {
         `Looking up address: "${address}" in city: "${cityId}" with analysis: ${includeAnalysis}`,
       );
 
-      const result = await multiCityUrbanismService.lookupAddress(
-        cityId,
-        address.trim(),
-      );
+      const shouldAnalyze = includeAnalysis === true;
+      const result = shouldAnalyze
+        ? await multiCityUrbanismService.lookupAddressWithAnalysis(
+            cityId,
+            address.trim(),
+          )
+        : await multiCityUrbanismService.lookupAddress(cityId, address.trim());
 
       console.log("Multi-city lookup successful, returning result");
       res.status(200).json(result);
     } catch (error: any) {
       console.error("Error looking up address in multi-city service:", error);
       res.status(500).json({ error: "Failed to lookup address" });
+    }
+  };
+
+  public analyzeBuildingDetails = async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { cityId, address, zoneCode, buildingType } = req.body;
+
+      if (!cityId || typeof cityId !== "string") {
+        res.status(400).json({ error: "City ID is required" });
+        return;
+      }
+      if (!address || typeof address !== "string") {
+        res.status(400).json({ error: "Address is required" });
+        return;
+      }
+      if (!zoneCode || typeof zoneCode !== "string") {
+        res.status(400).json({ error: "Zone code is required" });
+        return;
+      }
+      if (!buildingType || typeof buildingType !== "string") {
+        res.status(400).json({ error: "Building type is required" });
+        return;
+      }
+
+      console.log(
+        `[AI-RAG][${cityId}] analyze-building-details address="${address}" zone="${zoneCode}" type="${buildingType}"`,
+      );
+      const details = await multiCityUrbanismService.analyzeBuildingDetails(
+        cityId,
+        address.trim(),
+        zoneCode,
+        buildingType,
+      );
+      res.status(200).json(details);
+    } catch (error: any) {
+      console.error("Error analyzing multi-city building details:", error);
+      res.status(500).json({ error: "Failed to analyze building details" });
     }
   };
 

@@ -10,6 +10,11 @@ function createMultiCityUrbanismRouter(): Router {
     console.log("Request body in multi-city route:", req.body);
     controller.lookupAddress(req, res);
   });
+  router.post("/analyze-building-details", (req, res, _next) => {
+    console.log("Multi-city route handler called for /analyze-building-details");
+    console.log("Request body in multi-city route:", req.body);
+    controller.analyzeBuildingDetails(req, res);
+  });
 
   router.get("/counties", controller.getCounties);
   router.get("/counties/:county/cities", controller.getCitiesByCounty);
